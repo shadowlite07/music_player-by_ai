@@ -29,28 +29,79 @@ export default function LibraryScreen() {
         addToPlaylist
     } = usePlayer();
 
+    const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<'songs' | 'playlists'>('songs');
     const [playerVisible, setPlayerVisible] = useState(false);
-
-    // Playlist State
     const [selectedPlaylist, setSelectedPlaylist] = useState<any>(null);
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
-    const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
+    const [sortBy, setSortBy] = useState<'date' | 'name' | 'playCount'>('date');
+    const [hideDuplicates, setHideDuplicates] = useState(false);
+    const [showSortModal, setShowSortModal] = useState(false);
 
     useEffect(() => {
         loadLibrary();
     }, []);
 
-    const filteredTracks = React.useMemo(() => {
-        if (!searchQuery) return allTracks;
-        const query = searchQuery.toLowerCase();
-        return allTracks.filter(t =>
-            t.filename.toLowerCase().includes(query) ||
-            (t.title && t.title.toLowerCase().includes(query))
-        );
-    }, [allTracks, searchQuery]);
+    const processedTracks = React.useMemo(() => {
+        let tracks = [...allTracks];
+
+        // Filter duplicates
+        if (hideDuplicates) {
+            const seen = new Set();
+            tracks = tracks.filter(t => {
+                const key = `${(t.title || t.filename).trim().toLowerCase()}-${(t.artist || '').trim().toLowerCase()}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        }
+
+        // Search
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            tracks = tracks.filter(t =>
+                t.filename.toLowerCase().includes(query) ||
+                (t.title && t.title.toLowerCase().includes(query)) ||
+                (t.artist && t.artist.toLowerCase().includes(query))
+            );
+        }
+
+        // Sort
+        tracks.sort((a, b) => {
+            if (sortBy === 'date') return (b.dateAdded || 0) - (a.dateAdded || 0);
+            if (sortBy === 'name') return (a.title || a.filename).localeCompare(b.title || b.filename);
+            if (sortBy === 'playCount') return (b.playCount || 0) - (a.playCount || 0);
+            return 0;
+        });
+
+        return tracks;
+    }, [allTracks, searchQuery, sortBy, hideDuplicates]);
+
+    const smartPlaylists = React.useMemo(() => [
+        {
+            id: 'smart-recent',
+            name: 'Recently Added',
+            tracks: [...allTracks].sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0)).slice(0, 50),
+            isSmart: true,
+            icon: 'time-outline'
+        },
+        {
+            id: 'smart-most-played',
+            name: 'Most Played',
+            tracks: [...allTracks].sort((a, b) => (b.playCount || 0) - (a.playCount || 0)).filter(t => (t.playCount || 0) > 0).slice(0, 50),
+            isSmart: true,
+            icon: 'flame-outline'
+        },
+        {
+            id: 'smart-never-played',
+            name: 'Never Played',
+            tracks: allTracks.filter(t => !t.playCount || t.playCount === 0),
+            isSmart: true,
+            icon: 'eye-off-outline'
+        }
+    ], [allTracks]);
 
     const handleCreatePlaylist = () => {
         if (newPlaylistName.trim()) {
@@ -66,14 +117,7 @@ export default function LibraryScreen() {
 
     const playPlaylist = (playlist: any) => {
         if (playlist.tracks.length > 0) {
-            setQueue(playlist.tracks);
-            // Auto play first
-            // We need to wait for queue to update? Context updates are immediate in state but effect?
-            // playFromQueue(0);
-            // Actually setQueue runs separately.
-            // Better: setQueue and play index 0.
-            // Context doesn't expose a method to do both atomic, but standard React state update batching might handle it.
-            // Or user has to press play.
+            playTrack(playlist.tracks[0], playlist.tracks);
         }
     };
 
@@ -99,10 +143,10 @@ export default function LibraryScreen() {
     const renderItem = React.useCallback(({ item }: { item: Track }) => (
         <SongItem
             item={item}
-            onPress={() => playTrack(item)}
+            onPress={() => playTrack(item, processedTracks)}
             onLongPress={() => setTrackToAdd(item)}
         />
-    ), [playTrack, setTrackToAdd]);
+    ), [playTrack, processedTracks]);
 
     const renderPlaylist = React.useCallback(({ item }: { item: any }) => (
         <TouchableOpacity style={styles.songContainer} onPress={() => openPlaylist(item)}>
@@ -120,8 +164,11 @@ export default function LibraryScreen() {
     ), [deletePlaylist]);
 
     if (selectedPlaylist) {
-        // Find the most recent version of this playlist from context
-        const currentPlaylist = playlists.find(p => p.id === selectedPlaylist.id) || selectedPlaylist;
+        // Find the most recent version of this playlist from context or smart list
+        const isSmart = selectedPlaylist.isSmart;
+        const currentPlaylist = isSmart ?
+            smartPlaylists.find(p => p.id === selectedPlaylist.id) || selectedPlaylist :
+            playlists.find(p => p.id === selectedPlaylist.id) || selectedPlaylist;
 
         return (
             <SafeAreaView style={styles.container}>
@@ -131,12 +178,16 @@ export default function LibraryScreen() {
                     </TouchableOpacity>
 
                     <View style={{ flex: 1, marginHorizontal: 10 }}>
-                        <TextInput
-                            style={styles.headerTitle}
-                            value={currentPlaylist.name}
-                            onChangeText={(text) => renamePlaylist(currentPlaylist.id, text)}
-                            placeholderTextColor="#888"
-                        />
+                        {isSmart ? (
+                            <Text style={styles.headerTitle}>{currentPlaylist.name}</Text>
+                        ) : (
+                            <TextInput
+                                style={styles.headerTitle}
+                                value={currentPlaylist.name}
+                                onChangeText={(text) => renamePlaylist(currentPlaylist.id, text)}
+                                placeholderTextColor="#888"
+                            />
+                        )}
                     </View>
 
                     <TouchableOpacity onPress={() => playPlaylist(currentPlaylist)}>
@@ -144,39 +195,58 @@ export default function LibraryScreen() {
                     </TouchableOpacity>
                 </View>
 
-                <DraggableFlatList
-                    data={currentPlaylist.tracks}
-                    keyExtractor={(item) => item.id}
-                    onDragEnd={({ data, from, to }) => {
-                        moveTrackInPlaylist(currentPlaylist.id, from, to);
-                    }}
-                    renderItem={({ item, drag, isActive }: RenderItemParams<Track>) => (
-                        <TouchableOpacity
-                            style={[
-                                styles.songContainer,
-                                isActive && { backgroundColor: '#333' }
-                            ]}
-                            onPress={() => playTrack(item)}
-                            onLongPress={drag}
-                            delayLongPress={200}
-                        >
-                            <View style={styles.iconContainer}>
-                                <Ionicons name="musical-note" size={24} color="#666" />
-                            </View>
-                            <View style={styles.songDetails}>
-                                <Text style={styles.songTitle} numberOfLines={1}>{item.title || item.filename}</Text>
-                                <Text style={styles.songArtist} numberOfLines={1}>{item.artist || 'Unknown Artist'}</Text>
-                            </View>
-                            <TouchableOpacity onPress={() => removeTrackFromPlaylist(currentPlaylist.id, item.id)}>
-                                <Ionicons name="close" size={20} color="#666" />
+                {isSmart ? (
+                    <FlashList
+                        data={currentPlaylist.tracks}
+                        keyExtractor={(item: any) => item.id}
+                        renderItem={({ item }: { item: Track }) => (
+                            <SongItem
+                                item={item}
+                                onPress={() => playTrack(item, currentPlaylist.tracks)}
+                                onLongPress={() => setTrackToAdd(item)}
+                            />
+                        )}
+                        estimatedItemSize={65}
+                        contentContainerStyle={styles.listContent}
+                        ListEmptyComponent={
+                            <View style={styles.emptyContainer}><Text style={styles.emptyText}>No songs available.</Text></View>
+                        }
+                    />
+                ) : (
+                    <DraggableFlatList
+                        data={currentPlaylist.tracks}
+                        keyExtractor={(item) => item.id}
+                        onDragEnd={({ data, from, to }) => {
+                            moveTrackInPlaylist(currentPlaylist.id, from, to);
+                        }}
+                        renderItem={({ item, drag, isActive }: RenderItemParams<Track>) => (
+                            <TouchableOpacity
+                                style={[
+                                    styles.songContainer,
+                                    isActive && { backgroundColor: '#333' }
+                                ]}
+                                onPress={() => playTrack(item, currentPlaylist.tracks)}
+                                onLongPress={drag}
+                                delayLongPress={200}
+                            >
+                                <View style={styles.iconContainer}>
+                                    <Ionicons name="musical-note" size={24} color="#666" />
+                                </View>
+                                <View style={styles.songDetails}>
+                                    <Text style={styles.songTitle} numberOfLines={1}>{item.title || item.filename}</Text>
+                                    <Text style={styles.songArtist} numberOfLines={1}>{item.artist || 'Unknown Artist'}</Text>
+                                </View>
+                                <TouchableOpacity onPress={() => removeTrackFromPlaylist(currentPlaylist.id, item.id)}>
+                                    <Ionicons name="close" size={20} color="#666" />
+                                </TouchableOpacity>
                             </TouchableOpacity>
-                        </TouchableOpacity>
-                    )}
-                    contentContainerStyle={styles.listContent}
-                    ListEmptyComponent={
-                        <View style={styles.emptyContainer}><Text style={styles.emptyText}>No songs in this playlist. Long press songs in Library to add.</Text></View>
-                    }
-                />
+                        )}
+                        contentContainerStyle={styles.listContent}
+                        ListEmptyComponent={
+                            <View style={styles.emptyContainer}><Text style={styles.emptyText}>No songs in this playlist. Long press songs in Library to add.</Text></View>
+                        }
+                    />
+                )}
 
                 {/* Mini Player */}
                 {currentTrack && (
@@ -269,7 +339,47 @@ export default function LibraryScreen() {
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                 />
+                <TouchableOpacity onPress={() => setShowSortModal(true)}>
+                    <Ionicons name="options-outline" size={20} color={hideDuplicates || sortBy !== 'date' ? "#BB86FC" : "#888"} />
+                </TouchableOpacity>
             </View>
+
+            {/* Sort/Filter Modal */}
+            <Modal visible={showSortModal} transparent animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Sort & Filter</Text>
+
+                        <Text style={styles.sectionTitle}>Sort By</Text>
+                        {(['date', 'name', 'playCount'] as const).map((option) => (
+                            <TouchableOpacity
+                                key={option}
+                                style={styles.modalItem}
+                                onPress={() => { setSortBy(option); setShowSortModal(false); }}
+                            >
+                                <Text style={[styles.modalItemText, sortBy === option && { color: '#BB86FC' }]}>
+                                    {option === 'date' ? 'Date Added' : option === 'name' ? 'Name' : 'Play Count'}
+                                </Text>
+                                {sortBy === option && <Ionicons name="checkmark" size={20} color="#BB86FC" />}
+                            </TouchableOpacity>
+                        ))}
+
+                        <View style={styles.divider} />
+
+                        <TouchableOpacity
+                            style={styles.modalItem}
+                            onPress={() => setHideDuplicates(!hideDuplicates)}
+                        >
+                            <Text style={styles.modalItemText}>Hide Duplicates</Text>
+                            <Ionicons name={hideDuplicates ? "checkbox" : "square-outline"} size={20} color="#BB86FC" />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={() => setShowSortModal(false)} style={styles.modalCloseButton}>
+                            <Text style={styles.modalCloseText}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
             {/* Tabs */}
             <View style={styles.tabsContainer}>
@@ -290,7 +400,7 @@ export default function LibraryScreen() {
             {/* List */}
             {activeTab === 'songs' ? (
                 <FlashList
-                    data={filteredTracks}
+                    data={processedTracks}
                     keyExtractor={(item: any) => item.id}
                     renderItem={renderItem}
                     estimatedItemSize={65}
@@ -303,9 +413,24 @@ export default function LibraryScreen() {
                 />
             ) : (
                 <FlashList
-                    data={playlists}
+                    data={[...smartPlaylists, ...playlists]}
                     keyExtractor={(item: any) => item.id}
-                    renderItem={renderPlaylist}
+                    renderItem={({ item }: { item: any }) => (
+                        <TouchableOpacity style={styles.songContainer} onPress={() => openPlaylist(item)}>
+                            <View style={styles.iconContainer}>
+                                <Ionicons name={item.icon || "list"} size={24} color={item.isSmart ? "#03DAC6" : "#BB86FC"} />
+                            </View>
+                            <View style={styles.songDetails}>
+                                <Text style={styles.songTitle}>{item.name}</Text>
+                                <Text style={styles.songArtist}>{item.tracks.length} songs{item.isSmart ? ' (Smart)' : ''}</Text>
+                            </View>
+                            {!item.isSmart && (
+                                <TouchableOpacity onPress={() => deletePlaylist(item.id)}>
+                                    <Ionicons name="trash-outline" size={20} color="#666" />
+                                </TouchableOpacity>
+                            )}
+                        </TouchableOpacity>
+                    )}
                     estimatedItemSize={65}
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={
@@ -523,5 +648,18 @@ const styles = StyleSheet.create({
     },
     modalCloseText: {
         color: '#BB86FC',
+    },
+    sectionTitle: {
+        color: '#888',
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginTop: 10,
+        marginBottom: 10,
+        textTransform: 'uppercase',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#333',
+        marginVertical: 15,
     },
 });

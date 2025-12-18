@@ -9,6 +9,8 @@ export interface Track {
     albumId?: string;
     title?: string;
     artwork?: string;
+    playCount: number;
+    dateAdded: number;
 }
 
 export interface Playlist {

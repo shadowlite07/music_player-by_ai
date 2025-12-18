@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useMemo } from 'react';
 import { AppState, AppStateStatus, Alert } from 'react-native';
-import { useAudioPlayer, AudioPlayer, AudioSource, createAudioPlayer } from 'expo-audio';
+import { useAudioPlayer, AudioPlayer, AudioSource, createAudioPlayer, AudioModule } from 'expo-audio';
 import * as MediaLibrary from 'expo-media-library';
 import { StorageService } from '../services/storage';
 import { Track, Playlist, RepeatMode, AudioSettings, EqualizerBand, Preset } from '../constants/types';
@@ -11,7 +11,7 @@ interface PlayerContextType {
     isPlaying: boolean;
     queue: Track[];
     playlists: Playlist[];
-    playTrack: (track: Track) => Promise<void>;
+    playTrack: (track: Track, customQueue?: Track[]) => Promise<void>;
     playFromQueue: (index: number, startPosition?: number) => Promise<void>;
     togglePlayback: () => Promise<void>;
     seekTo: (position: number) => Promise<void>;
@@ -87,9 +87,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     const soundRef = useRef<AudioPlayer | null>(null);
     const isLoadingRef = useRef(false);
+    const queueRef = useRef<Track[]>([]);
+    const currentIndexRef = useRef<number | null>(null);
     const [isInitialized, setIsInitialized] = useState(false);
 
+    // Wrapper to keep ref in sync
+    const setQueueStateWithRef = (tracks: Track[]) => {
+        setQueueState(tracks);
+        queueRef.current = tracks;
+    };
+
+    const setCurrentIndexWithRef = (index: number | null) => {
+        setCurrentIndex(index);
+        currentIndexRef.current = index;
+    };
+
     useEffect(() => {
+        AudioModule.setAudioModeAsync({
+            playsInSilentMode: true,
+            shouldPlayInBackground: true,
+        }).catch(err => console.log('AudioModule config error:', err));
+
         restoreState();
         return () => {
             if (soundRef.current) {
@@ -117,9 +135,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
             if (savedLibrary.length > 0) setAllTracks(savedLibrary);
             if (savedQueue.length > 0) {
-                setQueueState(savedQueue);
+                setQueueStateWithRef(savedQueue);
                 if (index >= 0 && index < savedQueue.length) {
-                    setCurrentIndex(index);
+                    setCurrentIndexWithRef(index);
                     setPosition(savedPos);
                 }
             }
@@ -142,18 +160,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 sortBy: ['creationTime'],
             });
 
-            const tracks: Track[] = media.assets.map(asset => ({
-                id: asset.id,
-                uri: asset.uri,
-                filename: asset.filename,
-                duration: asset.duration,
-                title: asset.filename.replace(/\.[^/.]+$/, ""),
-            }));
+            const tracks: Track[] = media.assets.map(asset => {
+                const existing = allTracks.find(t => t.id === asset.id);
+                return {
+                    id: asset.id,
+                    uri: asset.uri,
+                    filename: asset.filename,
+                    duration: asset.duration,
+                    title: asset.filename.replace(/\.[^/.]+$/, ""),
+                    dateAdded: asset.creationTime,
+                    playCount: existing ? (existing.playCount || 0) : 0,
+                };
+            });
 
             setAllTracks(prev => {
-                if (JSON.stringify(prev) !== JSON.stringify(tracks)) {
-                    StorageService.saveLibrary(tracks);
-                    return tracks;
+                // If the library has changed, we save it.
+                // We should be careful about not losing playCount here.
+                // Instead of simple JSON.stringify, let's merge.
+                const mergedTracks = tracks.map(t => {
+                    const old = prev.find(p => p.id === t.id);
+                    if (old) return { ...t, playCount: old.playCount || 0 };
+                    return t;
+                });
+
+                if (JSON.stringify(prev) !== JSON.stringify(mergedTracks)) {
+                    StorageService.saveLibrary(mergedTracks);
+                    return mergedTracks;
                 }
                 return prev;
             });
@@ -170,20 +202,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
 
     async function playFromQueue(index: number, startPosition: number = 0) {
-        if (index < 0 || index >= queue.length) return;
+        const currentQueue = queueRef.current;
+        if (index < 0 || index >= currentQueue.length) return;
         if (isLoadingRef.current) return;
 
         try {
             isLoadingRef.current = true;
-            setCurrentIndex(index);
+            setCurrentIndexWithRef(index);
             setIsPlaying(true);
+
+            const track = currentQueue[index];
+            incrementPlayCount(track.id);
 
             const oldSound = soundRef.current;
             const isCrossing = audioSettings.crossfade && oldSound && isPlaying;
 
             if (!isCrossing) await unloadSound();
 
-            const track = queue[index];
             let targetVolume = isMuted ? 0 : volume;
             if (audioSettings.normalizeVolume) targetVolume *= 0.8;
 
@@ -191,6 +226,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             const newPlayer = createAudioPlayer(track.uri);
             newPlayer.volume = initialVolume;
             newPlayer.muted = isMuted;
+
+            // Try to set metadata if property exists for lock screen/notification
+            try {
+                const playerAny = newPlayer as any;
+                playerAny.metadata = {
+                    title: track.title || track.filename,
+                    artist: track.artist || 'Unknown Artist',
+                    album: 'Local Music',
+                };
+                if ('showNowPlayingControls' in playerAny) {
+                    playerAny.showNowPlayingControls = true;
+                }
+            } catch (e) { }
 
             if (startPosition > 0) newPlayer.seekTo(startPosition / 1000);
             newPlayer.play();
@@ -254,9 +302,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             setIsPlaying(!isNowPlaying);
             if (isNowPlaying) soundRef.current.pause();
             else soundRef.current.play();
-        } else if (queue.length > 0 && currentIndex !== null) {
-            playFromQueue(currentIndex, position);
-        } else if (queue.length > 0) {
+        } else if (queueRef.current.length > 0 && currentIndexRef.current !== null) {
+            playFromQueue(currentIndexRef.current, position);
+        } else if (queueRef.current.length > 0) {
             playFromQueue(0);
         }
     };
@@ -281,41 +329,43 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
 
     const nextTrack = async () => {
-        if (currentIndex !== null && currentIndex < queue.length - 1) {
-            await playFromQueue(currentIndex + 1);
+        const currentQueue = queueRef.current;
+        const curIndex = currentIndexRef.current;
+        if (curIndex !== null && curIndex < currentQueue.length - 1) {
+            await playFromQueue(curIndex + 1);
         }
     };
 
     const previousTrack = async () => {
-        if (currentIndex !== null && currentIndex > 0) {
-            await playFromQueue(currentIndex - 1);
+        const curIndex = currentIndexRef.current;
+        if (curIndex !== null && curIndex > 0) {
+            await playFromQueue(curIndex - 1);
         } else {
             seekTo(0);
         }
     };
 
-    const addToQueue = (tracks: Track[]) => setQueueState(prev => [...prev, ...tracks]);
-    const setQueue = (tracks: Track[]) => setQueueState(tracks);
-    const removeFromQueue = (index: number) => setQueueState(prev => prev.filter((_, i) => i !== index));
-    const clearQueue = () => { setQueueState([]); unloadSound(); setCurrentIndex(null); };
+    const addToQueue = (tracks: Track[]) => setQueueStateWithRef([...queueRef.current, ...tracks]);
+    const setQueue = (tracks: Track[]) => setQueueStateWithRef(tracks);
+    const removeFromQueue = (index: number) => setQueueStateWithRef(queueRef.current.filter((_, i) => i !== index));
+    const clearQueue = () => { setQueueStateWithRef([]); unloadSound(); setCurrentIndexWithRef(null); };
 
     const reorderQueue = (from: number, to: number) => {
-        setQueueState(prev => {
-            const newQueue = [...prev];
-            const [moved] = newQueue.splice(from, 1);
-            newQueue.splice(to, 0, moved);
-            if (currentIndex === from) setCurrentIndex(to);
-            return newQueue;
-        });
+        const newQueue = [...queueRef.current];
+        const [moved] = newQueue.splice(from, 1);
+        newQueue.splice(to, 0, moved);
+        setQueueStateWithRef(newQueue);
+        if (currentIndexRef.current === from) setCurrentIndexWithRef(to);
     };
 
-    const playTrack = async (track: Track) => {
-        const index = allTracks.findIndex(t => t.id === track.id);
+    const playTrack = async (track: Track, customQueue?: Track[]) => {
+        const targetQueue = customQueue || allTracks;
+        const index = targetQueue.findIndex(t => t.id === track.id);
         if (index !== -1) {
-            setQueueState([...allTracks]);
+            setQueueStateWithRef([...targetQueue]);
             await playFromQueue(index);
         } else {
-            setQueueState([track]);
+            setQueueStateWithRef([track]);
             await playFromQueue(0);
         }
     };
@@ -348,6 +398,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const deletePlaylist = async (id: string) => setPlaylists(prev => prev.filter(p => p.id !== id));
     const addToPlaylist = async (playlistId: string, track: Track) => {
         setPlaylists(prev => prev.map(p => (p.id === playlistId && !p.tracks.some(t => t.id === track.id)) ? { ...p, tracks: [...p.tracks, track] } : p));
+    };
+
+    const incrementPlayCount = (trackId: string) => {
+        setAllTracks(prev => {
+            const next = prev.map(t => t.id === trackId ? { ...t, playCount: (t.playCount || 0) + 1 } : t);
+            StorageService.saveLibrary(next);
+            return next;
+        });
+        // Also update in queue if present
+        setQueueStateWithRef(queueRef.current.map(t => t.id === trackId ? { ...t, playCount: (t.playCount || 0) + 1 } : t));
     };
 
     const updateAudioSettings = (settings: Partial<AudioSettings>) => setAudioSettings(prev => ({ ...prev, ...settings }));
