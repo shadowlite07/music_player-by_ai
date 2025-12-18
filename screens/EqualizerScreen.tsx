@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, Modal, TouchableOpacity, ScrollView, Switch } f
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { usePlayer } from '../contexts/PlayerContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface EqualizerScreenProps {
     visible: boolean;
@@ -18,6 +19,7 @@ export default function EqualizerScreen({ visible, onClose }: EqualizerScreenPro
         audioSettings,
         updateAudioSettings
     } = usePlayer();
+    const { colors } = useTheme();
 
     // Replay Gain (Normalization) - simulated
     // Crossfade UI
@@ -30,48 +32,48 @@ export default function EqualizerScreen({ visible, onClose }: EqualizerScreenPro
             onRequestClose={onClose}
         >
             <View style={styles.modalContainer}>
-                <View style={styles.contentContainer}>
+                <View style={[styles.contentContainer, { backgroundColor: colors.surface }]}>
                     <View style={styles.header}>
                         <TouchableOpacity onPress={onClose}>
-                            <Ionicons name="chevron-down" size={30} color="#FFF" />
+                            <Ionicons name="chevron-down" size={30} color={colors.text} />
                         </TouchableOpacity>
-                        <Text style={styles.title}>Audio Settings</Text>
+                        <Text style={[styles.title, { color: colors.text }]}>Audio Settings</Text>
                         <View style={{ width: 30 }} />
                     </View>
 
                     <ScrollView contentContainerStyle={styles.scrollContent}>
                         {/* Audio Quality Section */}
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Audio Quality</Text>
+                        <View style={[styles.section, { backgroundColor: colors.card }]}>
+                            <Text style={[styles.sectionTitle, { color: colors.accent }]}>Audio Quality</Text>
                             <View style={styles.row}>
-                                <Text style={styles.label}>High Quality Pitch Correction</Text>
+                                <Text style={[styles.label, { color: colors.text }]}>High Quality Pitch Correction</Text>
                                 <Switch
                                     value={audioSettings.quality === 'high'}
                                     onValueChange={(val) => updateAudioSettings({ quality: val ? 'high' : 'low' })}
-                                    trackColor={{ false: "#767577", true: "#BB86FC" }}
-                                    thumbColor={audioSettings.quality === 'high' ? "#FFF" : "#f4f3f4"}
+                                    trackColor={{ false: "#767577", true: colors.accent }}
+                                    thumbColor="#FFF"
                                 />
                             </View>
-                            <Text style={styles.description}>
+                            <Text style={[styles.description, { color: colors.textSecondary }]}>
                                 Improves audio quality when changing speed or pitch.
                             </Text>
                         </View>
 
-                        {/* Crossfade Section */}
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Playback</Text>
+                        {/* Playback Section */}
+                        <View style={[styles.section, { backgroundColor: colors.card }]}>
+                            <Text style={[styles.sectionTitle, { color: colors.accent }]}>Playback</Text>
                             <View style={styles.row}>
-                                <Text style={styles.label}>Crossfade Songs</Text>
+                                <Text style={[styles.label, { color: colors.text }]}>Crossfade Songs</Text>
                                 <Switch
                                     value={audioSettings.crossfade}
                                     onValueChange={(val) => updateAudioSettings({ crossfade: val })}
-                                    trackColor={{ false: "#767577", true: "#BB86FC" }}
-                                    thumbColor={audioSettings.crossfade ? "#FFF" : "#f4f3f4"}
+                                    trackColor={{ false: "#767577", true: colors.accent }}
+                                    thumbColor="#FFF"
                                 />
                             </View>
                             {audioSettings.crossfade && (
                                 <View style={styles.sliderContainer}>
-                                    <Text style={styles.subLabel}>{audioSettings.crossfadeDuration / 1000}s Transition</Text>
+                                    <Text style={[styles.subLabel, { color: colors.textSecondary }]}>{audioSettings.crossfadeDuration / 1000}s Transition</Text>
                                     <Slider
                                         style={{ width: '100%', height: 40 }}
                                         minimumValue={1000}
@@ -79,37 +81,37 @@ export default function EqualizerScreen({ visible, onClose }: EqualizerScreenPro
                                         step={500}
                                         value={audioSettings.crossfadeDuration}
                                         onSlidingComplete={(val) => updateAudioSettings({ crossfadeDuration: val })}
-                                        minimumTrackTintColor="#BB86FC"
-                                        maximumTrackTintColor="#555"
-                                        thumbTintColor="#BB86FC"
+                                        minimumTrackTintColor={colors.accent}
+                                        maximumTrackTintColor={colors.border}
+                                        thumbTintColor={colors.accent}
                                     />
                                 </View>
                             )}
 
                             <View style={[styles.row, { marginTop: 15 }]}>
-                                <Text style={styles.label}>Normalize Volume (Replay Gain)</Text>
+                                <Text style={[styles.label, { color: colors.text }]}>Normalize Volume (Replay Gain)</Text>
                                 <Switch
                                     value={audioSettings.normalizeVolume}
                                     onValueChange={(val) => updateAudioSettings({ normalizeVolume: val })}
-                                    trackColor={{ false: "#767577", true: "#BB86FC" }}
-                                    thumbColor={audioSettings.normalizeVolume ? "#FFF" : "#f4f3f4"}
+                                    trackColor={{ false: "#767577", true: colors.accent }}
+                                    thumbColor="#FFF"
                                 />
                             </View>
                         </View>
 
                         {/* Equalizer Section */}
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Equalizer (Simulation)</Text>
+                        <View style={[styles.section, { backgroundColor: colors.card }]}>
+                            <Text style={[styles.sectionTitle, { color: colors.accent }]}>Equalizer (Simulation)</Text>
 
                             {/* Presets */}
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetScroll}>
                                 {presets.map(preset => (
                                     <TouchableOpacity
                                         key={preset.id}
-                                        style={styles.presetChip}
+                                        style={[styles.presetChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
                                         onPress={() => applyPreset(preset.id)}
                                     >
-                                        <Text style={styles.presetText}>{preset.name}</Text>
+                                        <Text style={[styles.presetText, { color: colors.text }]}>{preset.name}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </ScrollView>
@@ -124,19 +126,16 @@ export default function EqualizerScreen({ visible, onClose }: EqualizerScreenPro
                                                 maximumValue={10}
                                                 value={band.gain}
                                                 onSlidingComplete={(val) => updateEqualizerBand(band.frequency, val)}
-                                                minimumTrackTintColor="#BB86FC"
-                                                maximumTrackTintColor="#555"
+                                                minimumTrackTintColor={colors.accent}
+                                                maximumTrackTintColor={colors.border}
                                                 thumbTintColor="#FFF"
                                             />
                                         </View>
-                                        <Text style={styles.bandLabel}>{band.label}</Text>
-                                        <Text style={styles.gainLabel}>{Math.round(band.gain)}dB</Text>
+                                        <Text style={[styles.bandLabel, { color: colors.textSecondary }]}>{band.label}</Text>
+                                        <Text style={[styles.gainLabel, { color: colors.accent }]}>{Math.round(band.gain)}dB</Text>
                                     </View>
                                 ))}
                             </View>
-                            {/* <Text style={styles.description}>
-                                Note: Direct DSP Equalization requires native modules not available here. This UI saves preferences for future logic.
-                            </Text> */}
                         </View>
 
                     </ScrollView>
@@ -153,7 +152,6 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     contentContainer: {
-        backgroundColor: '#1E1E1E',
         height: '85%',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
@@ -166,7 +164,6 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     title: {
-        color: '#FFF',
         fontSize: 20,
         fontWeight: 'bold',
     },
@@ -175,12 +172,10 @@ const styles = StyleSheet.create({
     },
     section: {
         marginBottom: 30,
-        backgroundColor: '#2A2A2A',
         padding: 15,
         borderRadius: 12,
     },
     sectionTitle: {
-        color: '#BB86FC',
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 15,
@@ -193,16 +188,13 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     label: {
-        color: '#FFF',
         fontSize: 16,
     },
     subLabel: {
-        color: '#AAA',
         fontSize: 14,
         marginBottom: 5,
     },
     description: {
-        color: '#666',
         fontSize: 12,
         marginTop: 5,
         fontStyle: 'italic',
@@ -214,16 +206,13 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     presetChip: {
-        backgroundColor: '#333',
         paddingHorizontal: 15,
         paddingVertical: 8,
         borderRadius: 20,
         marginRight: 10,
         borderWidth: 1,
-        borderColor: '#444',
     },
     presetText: {
-        color: '#FFF',
         fontSize: 14,
     },
     eqContainer: {
@@ -243,11 +232,9 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     bandLabel: {
-        color: '#AAA',
         fontSize: 12,
     },
     gainLabel: {
-        color: '#BB86FC',
         fontSize: 10,
         marginTop: 2,
     }

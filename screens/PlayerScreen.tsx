@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePlayer, usePlayback } from '../contexts/PlayerContext';
 import { Track } from '../constants/types';
 import EqualizerScreen from './EqualizerScreen';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -18,6 +19,7 @@ interface Props {
 export default function PlayerScreen({ visible, onClose }: Props) {
     const { currentTrack, isPlaying, seekTo, togglePlayback, nextTrack, previousTrack, queue, playFromQueue, removeFromQueue, clearQueue, volume, setVolume, isMuted, toggleMute } = usePlayer();
     const { position, duration } = usePlayback();
+    const { colors } = useTheme();
     const [isSeeking, setIsSeeking] = useState(false);
     const [seekValue, setSeekValue] = useState(0);
     const [showQueue, setShowQueue] = useState(false);
@@ -40,14 +42,14 @@ export default function PlayerScreen({ visible, onClose }: Props) {
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
             <EqualizerScreen visible={isSettingsVisible} onClose={() => setIsSettingsVisible(false)} />
-            <View style={styles.container}>
+            <View style={[styles.container, { backgroundColor: colors.background }]}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Ionicons name="chevron-down" size={32} color="#FFF" />
+                        <Ionicons name="chevron-down" size={32} color={colors.text} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>{showQueue ? 'Queue' : 'Now Playing'}</Text>
+                    <Text style={[styles.headerTitle, { color: colors.textSecondary }]}>{showQueue ? 'Queue' : 'Now Playing'}</Text>
                     <TouchableOpacity onPress={() => setShowQueue(!showQueue)} style={styles.queueButton}>
-                        <Ionicons name={showQueue ? "musical-notes" : "list"} size={28} color="#FFF" />
+                        <Ionicons name={showQueue ? "musical-notes" : "list"} size={28} color={colors.text} />
                     </TouchableOpacity>
                 </View>
 
@@ -55,7 +57,7 @@ export default function PlayerScreen({ visible, onClose }: Props) {
                     <View style={styles.queueContainer}>
                         <View style={styles.queueHeader}>
                             <TouchableOpacity onPress={clearQueue}>
-                                <Text style={styles.clearText}>Clear Queue</Text>
+                                <Text style={[styles.clearText, { color: colors.accent }]}>Clear Queue</Text>
                             </TouchableOpacity>
                         </View>
                         <FlashList
@@ -63,15 +65,23 @@ export default function PlayerScreen({ visible, onClose }: Props) {
                             keyExtractor={(item: any, index: number) => item.id + index}
                             estimatedItemSize={61}
                             renderItem={({ item, index }: { item: any, index: number }) => (
-                                <View style={[styles.queueItem, currentTrack.id === item.id && styles.activeQueueItem]}>
+                                <View style={[
+                                    styles.queueItem,
+                                    { borderBottomColor: colors.border },
+                                    currentTrack.id === item.id && { backgroundColor: colors.card }
+                                ]}>
                                     <TouchableOpacity style={styles.queueInfo} onPress={() => playFromQueue(index)}>
-                                        <Text style={[styles.queueTitle, currentTrack.id === item.id && styles.activeQueueText]} numberOfLines={1}>
+                                        <Text style={[
+                                            styles.queueTitle,
+                                            { color: colors.text },
+                                            currentTrack.id === item.id && { color: colors.accent, fontWeight: 'bold' }
+                                        ]} numberOfLines={1}>
                                             {item.title || item.filename}
                                         </Text>
-                                        <Text style={styles.queueArtist} numberOfLines={1}>{item.artist || 'Unknown'}</Text>
+                                        <Text style={[styles.queueArtist, { color: colors.textSecondary }]} numberOfLines={1}>{item.artist || 'Unknown'}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => removeFromQueue(index)}>
-                                        <Ionicons name="close" size={20} color="#666" />
+                                        <Ionicons name="close" size={20} color={colors.accent} />
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -80,14 +90,14 @@ export default function PlayerScreen({ visible, onClose }: Props) {
                 ) : (
                     <>
                         <View style={styles.artworkContainer}>
-                            <View style={styles.artworkPlaceholder}>
-                                <Ionicons name="musical-note" size={80} color="#333" />
+                            <View style={[styles.artworkPlaceholder, { backgroundColor: colors.card }]}>
+                                <Ionicons name="musical-note" size={80} color={colors.accent} />
                             </View>
                         </View>
 
                         <View style={styles.infoContainer}>
-                            <Text style={styles.title} numberOfLines={1}>{currentTrack.filename.replace(/\.[^/.]+$/, "")}</Text>
-                            <Text style={styles.artist}>{currentTrack.artist || 'Unknown Artist'}</Text>
+                            <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{currentTrack.title || currentTrack.filename}</Text>
+                            <Text style={[styles.artist, { color: colors.textSecondary }]}>{currentTrack.artist || 'Unknown Artist'}</Text>
                         </View>
                     </>
                 )}
@@ -96,7 +106,7 @@ export default function PlayerScreen({ visible, onClose }: Props) {
                     {/* Add Settings Button Row */}
                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 20, marginBottom: 10 }}>
                         <TouchableOpacity onPress={() => setIsSettingsVisible(true)}>
-                            <Ionicons name="settings-outline" size={24} color="#AAA" />
+                            <Ionicons name="settings-outline" size={24} color={colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
 
@@ -114,34 +124,34 @@ export default function PlayerScreen({ visible, onClose }: Props) {
                                 await seekTo(val);
                                 setIsSeeking(false);
                             }}
-                            minimumTrackTintColor="#BB86FC"
-                            maximumTrackTintColor="#555"
-                            thumbTintColor="#BB86FC"
+                            minimumTrackTintColor={colors.accent}
+                            maximumTrackTintColor={colors.border}
+                            thumbTintColor={colors.accent}
                         />
                         <View style={styles.timeRow}>
-                            <Text style={styles.timeText}>{getDisplayTime()}</Text>
-                            <Text style={styles.timeText}>{formatTime(duration)}</Text>
+                            <Text style={[styles.timeText, { color: colors.textSecondary }]}>{getDisplayTime()}</Text>
+                            <Text style={[styles.timeText, { color: colors.textSecondary }]}>{formatTime(duration)}</Text>
                         </View>
                     </View>
 
                     <View style={styles.controlsMain}>
                         <TouchableOpacity onPress={previousTrack}>
-                            <Ionicons name="play-skip-back" size={40} color="#FFF" />
+                            <Ionicons name="play-skip-back" size={40} color={colors.text} />
                         </TouchableOpacity>
 
-                        <TouchableOpacity onPress={togglePlayback} style={styles.playButton}>
-                            <Ionicons name={isPlaying ? "pause" : "play"} size={40} color="#000" />
+                        <TouchableOpacity onPress={togglePlayback} style={[styles.playButton, { backgroundColor: colors.accent }]}>
+                            <Ionicons name={isPlaying ? "pause" : "play"} size={40} color={colors.background} />
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={nextTrack}>
-                            <Ionicons name="play-skip-forward" size={40} color="#FFF" />
+                            <Ionicons name="play-skip-forward" size={40} color={colors.text} />
                         </TouchableOpacity>
                     </View>
 
                     {/* Volume Control */}
                     <View style={styles.volumeContainer}>
                         <TouchableOpacity onPress={toggleMute}>
-                            <Ionicons name={isMuted ? "volume-mute" : "volume-high"} size={24} color="#FFF" />
+                            <Ionicons name={isMuted ? "volume-mute" : "volume-high"} size={24} color={colors.text} />
                         </TouchableOpacity>
                         <Slider
                             style={styles.volumeSlider}
@@ -149,9 +159,9 @@ export default function PlayerScreen({ visible, onClose }: Props) {
                             maximumValue={1}
                             value={isMuted ? 0 : volume}
                             onValueChange={(val) => setVolume(val)}
-                            minimumTrackTintColor="#BB86FC"
-                            maximumTrackTintColor="#555"
-                            thumbTintColor="#BB86FC"
+                            minimumTrackTintColor={colors.accent}
+                            maximumTrackTintColor={colors.border}
+                            thumbTintColor={colors.accent}
                         />
                     </View>
                 </View>
@@ -163,7 +173,6 @@ export default function PlayerScreen({ visible, onClose }: Props) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#121212',
         paddingVertical: 40,
         paddingHorizontal: 20,
         justifyContent: 'space-between',
@@ -178,7 +187,6 @@ const styles = StyleSheet.create({
         padding: 10,
     },
     headerTitle: {
-        color: '#888',
         fontSize: 16,
         textTransform: 'uppercase',
         letterSpacing: 1,
@@ -193,7 +201,6 @@ const styles = StyleSheet.create({
     artworkPlaceholder: {
         width: '80%',
         height: '80%',
-        backgroundColor: '#222',
         borderRadius: 12,
         alignItems: 'center',
         justifyContent: 'center',
@@ -208,14 +215,12 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
     title: {
-        color: '#FFF',
         fontSize: 24,
         fontWeight: 'bold',
         marginBottom: 8,
         textAlign: 'center',
     },
     artist: {
-        color: '#AAA',
         fontSize: 18,
     },
     progressContainer: {
@@ -232,7 +237,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     timeText: {
-        color: '#888',
         fontSize: 12,
     },
     controlsMain: {
@@ -245,7 +249,6 @@ const styles = StyleSheet.create({
         width: 70,
         height: 70,
         borderRadius: 35,
-        backgroundColor: '#BB86FC',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -262,7 +265,6 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     clearText: {
-        color: '#BB86FC',
         fontSize: 14,
     },
     queueItem: {
@@ -271,7 +273,6 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 20,
         borderBottomWidth: 1,
-        borderBottomColor: '#222',
     },
     activeQueueItem: {
         backgroundColor: '#1E1E1E',
@@ -280,16 +281,13 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     queueTitle: {
-        color: '#FFF',
         fontSize: 16,
         marginBottom: 2,
     },
     activeQueueText: {
-        color: '#BB86FC',
         fontWeight: 'bold',
     },
     queueArtist: {
-        color: '#888',
         fontSize: 12,
     },
     controlsContainer: {

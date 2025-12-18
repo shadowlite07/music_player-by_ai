@@ -9,6 +9,30 @@ import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-nativ
 import { usePlayer } from '../contexts/PlayerContext';
 import { Track } from '../constants/types';
 import PlayerScreen from '../screens/PlayerScreen';
+import { useTheme } from '../contexts/ThemeContext';
+import { AccentColors } from '../constants/theme';
+
+const SongItem = React.memo(({ item, onPress, onLongPress }: { item: Track, onPress: () => void, onLongPress?: () => void }) => {
+    const { colors } = useTheme();
+    return (
+        <TouchableOpacity
+            style={[styles.songContainer, { borderBottomColor: colors.border }]}
+            onPress={onPress}
+            onLongPress={onLongPress}
+        >
+            <View style={[styles.iconContainer, { backgroundColor: colors.card }]}>
+                <Ionicons name="musical-note" size={24} color={colors.accent} />
+            </View>
+            <View style={styles.songDetails}>
+                <Text style={[styles.songTitle, { color: colors.text }]} numberOfLines={1}>{item.title || item.filename}</Text>
+                <Text style={[styles.songArtist, { color: colors.textSecondary }]} numberOfLines={1}>{item.artist || 'Unknown Artist'}</Text>
+            </View>
+            <View>
+                <Text style={[styles.durationText, { color: colors.textSecondary }]}>{Math.floor(item.duration / 60)}:{Math.floor(item.duration % 60).toString().padStart(2, '0')}</Text>
+            </View>
+        </TouchableOpacity>
+    );
+});
 
 export default function LibraryScreen() {
     const {
@@ -28,6 +52,9 @@ export default function LibraryScreen() {
         setQueue,
         addToPlaylist
     } = usePlayer();
+    const { mode, accentColor, colors, setMode, setAccentColor } = useTheme();
+
+    const [showThemeModal, setShowThemeModal] = useState(false);
 
     const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -121,24 +148,6 @@ export default function LibraryScreen() {
         }
     };
 
-    const SongItem = React.memo(({ item, onPress, onLongPress }: { item: Track, onPress: () => void, onLongPress: () => void }) => (
-        <TouchableOpacity
-            style={styles.songContainer}
-            onPress={onPress}
-            onLongPress={onLongPress}
-        >
-            <View style={styles.iconContainer}>
-                <Ionicons name="musical-note" size={24} color="#666" />
-            </View>
-            <View style={styles.songDetails}>
-                <Text style={styles.songTitle} numberOfLines={1}>{item.title || item.filename}</Text>
-                <Text style={styles.songArtist} numberOfLines={1}>{item.artist || 'Unknown Artist'}</Text>
-            </View>
-            <View>
-                <Text style={styles.durationText}>{Math.floor(item.duration / 60)}:{Math.floor(item.duration % 60).toString().padStart(2, '0')}</Text>
-            </View>
-        </TouchableOpacity>
-    ));
 
     const renderItem = React.useCallback(({ item }: { item: Track }) => (
         <SongItem
@@ -149,19 +158,19 @@ export default function LibraryScreen() {
     ), [playTrack, processedTracks]);
 
     const renderPlaylist = React.useCallback(({ item }: { item: any }) => (
-        <TouchableOpacity style={styles.songContainer} onPress={() => openPlaylist(item)}>
-            <View style={styles.iconContainer}>
-                <Ionicons name="list" size={24} color="#BB86FC" />
+        <TouchableOpacity style={[styles.songContainer, { borderBottomColor: colors.border }]} onPress={() => openPlaylist(item)}>
+            <View style={[styles.iconContainer, { backgroundColor: colors.surface }]}>
+                <Ionicons name="list" size={24} color={colors.accent} />
             </View>
             <View style={styles.songDetails}>
-                <Text style={styles.songTitle}>{item.name}</Text>
-                <Text style={styles.songArtist}>{item.tracks.length} songs</Text>
+                <Text style={[styles.songTitle, { color: colors.text }]}>{item.name}</Text>
+                <Text style={[styles.songArtist, { color: colors.textSecondary }]}>{item.tracks.length} songs</Text>
             </View>
             <TouchableOpacity onPress={() => deletePlaylist(item.id)}>
-                <Ionicons name="trash-outline" size={20} color="#666" />
+                <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
         </TouchableOpacity>
-    ), [deletePlaylist]);
+    ), [deletePlaylist, colors]);
 
     if (selectedPlaylist) {
         // Find the most recent version of this playlist from context or smart list
@@ -171,27 +180,27 @@ export default function LibraryScreen() {
             playlists.find(p => p.id === selectedPlaylist.id) || selectedPlaylist;
 
         return (
-            <SafeAreaView style={styles.container}>
+            <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
                 <View style={styles.headerContainer}>
                     <TouchableOpacity onPress={() => setSelectedPlaylist(null)}>
-                        <Ionicons name="arrow-back" size={28} color="#FFF" />
+                        <Ionicons name="arrow-back" size={28} color={colors.text} />
                     </TouchableOpacity>
 
                     <View style={{ flex: 1, marginHorizontal: 10 }}>
                         {isSmart ? (
-                            <Text style={styles.headerTitle}>{currentPlaylist.name}</Text>
+                            <Text style={[styles.headerTitle, { color: colors.text }]}>{currentPlaylist.name}</Text>
                         ) : (
                             <TextInput
-                                style={styles.headerTitle}
+                                style={[styles.headerTitle, { color: colors.text }]}
                                 value={currentPlaylist.name}
                                 onChangeText={(text) => renamePlaylist(currentPlaylist.id, text)}
-                                placeholderTextColor="#888"
+                                placeholderTextColor={colors.textSecondary}
                             />
                         )}
                     </View>
 
                     <TouchableOpacity onPress={() => playPlaylist(currentPlaylist)}>
-                        <Ionicons name="play-circle" size={32} color="#BB86FC" />
+                        <Ionicons name="play-circle" size={32} color={colors.accent} />
                     </TouchableOpacity>
                 </View>
 
@@ -209,7 +218,7 @@ export default function LibraryScreen() {
                         estimatedItemSize={65}
                         contentContainerStyle={styles.listContent}
                         ListEmptyComponent={
-                            <View style={styles.emptyContainer}><Text style={styles.emptyText}>No songs available.</Text></View>
+                            <View style={styles.emptyContainer}><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No songs available.</Text></View>
                         }
                     />
                 ) : (
@@ -223,40 +232,41 @@ export default function LibraryScreen() {
                             <TouchableOpacity
                                 style={[
                                     styles.songContainer,
-                                    isActive && { backgroundColor: '#333' }
+                                    { borderBottomColor: colors.border },
+                                    isActive && { backgroundColor: colors.surface }
                                 ]}
                                 onPress={() => playTrack(item, currentPlaylist.tracks)}
                                 onLongPress={drag}
                                 delayLongPress={200}
                             >
-                                <View style={styles.iconContainer}>
-                                    <Ionicons name="musical-note" size={24} color="#666" />
+                                <View style={[styles.iconContainer, { backgroundColor: colors.card }]}>
+                                    <Ionicons name="musical-note" size={24} color={colors.accent} />
                                 </View>
                                 <View style={styles.songDetails}>
-                                    <Text style={styles.songTitle} numberOfLines={1}>{item.title || item.filename}</Text>
-                                    <Text style={styles.songArtist} numberOfLines={1}>{item.artist || 'Unknown Artist'}</Text>
+                                    <Text style={[styles.songTitle, { color: colors.text }]} numberOfLines={1}>{item.title || item.filename}</Text>
+                                    <Text style={[styles.songArtist, { color: colors.textSecondary }]} numberOfLines={1}>{item.artist || 'Unknown Artist'}</Text>
                                 </View>
                                 <TouchableOpacity onPress={() => removeTrackFromPlaylist(currentPlaylist.id, item.id)}>
-                                    <Ionicons name="close" size={20} color="#666" />
+                                    <Ionicons name="close" size={20} color={colors.textSecondary} />
                                 </TouchableOpacity>
                             </TouchableOpacity>
                         )}
                         contentContainerStyle={styles.listContent}
                         ListEmptyComponent={
-                            <View style={styles.emptyContainer}><Text style={styles.emptyText}>No songs in this playlist. Long press songs in Library to add.</Text></View>
+                            <View style={styles.emptyContainer}><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No songs in this playlist. Long press songs in Library to add.</Text></View>
                         }
                     />
                 )}
 
                 {/* Mini Player */}
                 {currentTrack && (
-                    <TouchableOpacity style={styles.miniPlayer} onPress={() => setPlayerVisible(true)}>
+                    <TouchableOpacity style={[styles.miniPlayer, { backgroundColor: colors.card, borderTopColor: colors.border }]} onPress={() => setPlayerVisible(true)}>
                         <View style={styles.miniPlayerInfo}>
-                            <Text style={styles.miniPlayerTitle} numberOfLines={1}>{currentTrack.title || currentTrack.filename}</Text>
-                            <Text style={styles.miniPlayerArtist} numberOfLines={1}>{currentTrack.artist || 'Unknown'}</Text>
+                            <Text style={[styles.miniPlayerTitle, { color: colors.text }]} numberOfLines={1}>{currentTrack.title || currentTrack.filename}</Text>
+                            <Text style={[styles.miniPlayerArtist, { color: colors.textSecondary }]} numberOfLines={1}>{currentTrack.artist || 'Unknown'}</Text>
                         </View>
                         <TouchableOpacity onPress={(e) => { e.stopPropagation(); togglePlayback(); }}>
-                            <Ionicons name={isPlaying ? "pause" : "play"} size={32} color="#FFF" />
+                            <Ionicons name={isPlaying ? "pause" : "play"} size={32} color={colors.accent} />
                         </TouchableOpacity>
                     </TouchableOpacity>
                 )}
@@ -266,35 +276,40 @@ export default function LibraryScreen() {
     }
 
     return (
-        <SafeAreaView style={styles.container}>
-            <StatusBar style="light" />
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
 
             {/* Search & Header */}
             <View style={styles.headerContainer}>
-                <Text style={styles.headerTitle}>Library</Text>
-                {activeTab === 'playlists' ? (
-                    <TouchableOpacity onPress={() => setIsCreatingPlaylist(!isCreatingPlaylist)}>
-                        <Ionicons name="add" size={32} color="#BB86FC" />
+                <Text style={[styles.headerTitle, { color: colors.text }]}>Library</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => setShowThemeModal(true)} style={{ marginRight: 15 }}>
+                        <Ionicons name="brush-outline" size={24} color={colors.accent} />
                     </TouchableOpacity>
-                ) : (
-                    <TouchableOpacity onPress={loadLibrary}>
-                        <Ionicons name="scan-outline" size={24} color="#FFF" />
-                    </TouchableOpacity>
-                )}
+                    {activeTab === 'playlists' ? (
+                        <TouchableOpacity onPress={() => setIsCreatingPlaylist(!isCreatingPlaylist)}>
+                            <Ionicons name="add" size={32} color={colors.accent} />
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity onPress={loadLibrary}>
+                            <Ionicons name="scan-outline" size={24} color={colors.text} />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
             {isCreatingPlaylist && (
                 <View style={styles.createPlaylistContainer}>
                     <TextInput
-                        style={styles.createInput}
+                        style={[styles.createInput, { backgroundColor: colors.surface, color: colors.text }]}
                         placeholder="Playlist Name"
-                        placeholderTextColor="#666"
+                        placeholderTextColor={colors.textSecondary}
                         value={newPlaylistName}
                         onChangeText={setNewPlaylistName}
                         autoFocus
                     />
-                    <TouchableOpacity onPress={handleCreatePlaylist} style={styles.createButton}>
-                        <Text style={styles.createButtonText}>Create</Text>
+                    <TouchableOpacity onPress={handleCreatePlaylist} style={[styles.createButton, { backgroundColor: colors.accent }]}>
+                        <Text style={[styles.createButtonText, { color: mode === 'dark' ? '#000' : '#FFF' }]}>Create</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -302,14 +317,14 @@ export default function LibraryScreen() {
             {/* Add to Playlist Modal */}
             <Modal visible={!!trackToAdd} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Add to Playlist</Text>
+                    <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.modalTitle, { color: colors.text }]}>Add to Playlist</Text>
                         <FlatList
                             data={playlists}
                             keyExtractor={item => item.id}
                             renderItem={({ item }) => (
                                 <TouchableOpacity
-                                    style={styles.modalItem}
+                                    style={[styles.modalItem, { borderBottomColor: colors.border }]}
                                     onPress={() => {
                                         if (trackToAdd) {
                                             addToPlaylist(item.id, trackToAdd);
@@ -317,65 +332,113 @@ export default function LibraryScreen() {
                                         }
                                     }}
                                 >
-                                    <Ionicons name="list" size={24} color="#FFF" style={{ marginRight: 10 }} />
-                                    <Text style={styles.modalItemText}>{item.name}</Text>
+                                    <Ionicons name="list" size={24} color={colors.text} style={{ marginRight: 10 }} />
+                                    <Text style={[styles.modalItemText, { color: colors.text }]}>{item.name}</Text>
                                 </TouchableOpacity>
                             )}
-                            ListEmptyComponent={<Text style={{ color: '#888', textAlign: 'center' }}>No playlists</Text>}
+                            ListEmptyComponent={<Text style={{ color: colors.textSecondary, textAlign: 'center' }}>No playlists</Text>}
                         />
                         <TouchableOpacity onPress={() => setTrackToAdd(null)} style={styles.modalCloseButton}>
-                            <Text style={styles.modalCloseText}>Cancel</Text>
+                            <Text style={[styles.modalCloseText, { color: colors.accent }]}>Cancel</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
 
-            <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color="#888" style={styles.searchIcon} />
+            {/* Theme Settings Modal */}
+            <Modal visible={showThemeModal} transparent animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.modalTitle, { color: colors.text }]}>Theme Settings</Text>
+
+                        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Mode</Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+                            {(['light', 'dark', 'system'] as const).map((m) => (
+                                <TouchableOpacity
+                                    key={m}
+                                    style={[
+                                        styles.tab,
+                                        mode === m && { borderBottomColor: colors.accent, borderBottomWidth: 2 }
+                                    ]}
+                                    onPress={() => setMode(m)}
+                                >
+                                    <Text style={[
+                                        styles.tabText,
+                                        { color: mode === m ? colors.text : colors.textSecondary }
+                                    ]}>
+                                        {m.charAt(0).toUpperCase() + m.slice(1)}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Accent Color</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 15, marginBottom: 20 }}>
+                            {AccentColors.map((ac) => (
+                                <TouchableOpacity
+                                    key={ac.color}
+                                    style={[
+                                        { width: 40, height: 40, borderRadius: 20, backgroundColor: ac.color },
+                                        accentColor === ac.color && { borderWidth: 3, borderColor: colors.text }
+                                    ]}
+                                    onPress={() => setAccentColor(ac.color)}
+                                />
+                            ))}
+                        </View>
+
+                        <TouchableOpacity onPress={() => setShowThemeModal(false)} style={styles.modalCloseButton}>
+                            <Text style={[styles.modalCloseText, { color: colors.accent }]}>Done</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            <View style={[styles.searchContainer, { backgroundColor: colors.surface }]}>
+                <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
                 <TextInput
-                    style={styles.searchInput}
+                    style={[styles.searchInput, { color: colors.text }]}
                     placeholder="Search songs, artists..."
-                    placeholderTextColor="#888"
+                    placeholderTextColor={colors.textSecondary}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                 />
                 <TouchableOpacity onPress={() => setShowSortModal(true)}>
-                    <Ionicons name="options-outline" size={20} color={hideDuplicates || sortBy !== 'date' ? "#BB86FC" : "#888"} />
+                    <Ionicons name="options-outline" size={20} color={hideDuplicates || sortBy !== 'date' ? colors.accent : colors.textSecondary} />
                 </TouchableOpacity>
             </View>
 
             {/* Sort/Filter Modal */}
             <Modal visible={showSortModal} transparent animationType="slide">
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Sort & Filter</Text>
+                    <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.modalTitle, { color: colors.text }]}>Sort & Filter</Text>
 
-                        <Text style={styles.sectionTitle}>Sort By</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Sort By</Text>
                         {(['date', 'name', 'playCount'] as const).map((option) => (
                             <TouchableOpacity
                                 key={option}
-                                style={styles.modalItem}
+                                style={[styles.modalItem, { borderBottomColor: colors.border }]}
                                 onPress={() => { setSortBy(option); setShowSortModal(false); }}
                             >
-                                <Text style={[styles.modalItemText, sortBy === option && { color: '#BB86FC' }]}>
+                                <Text style={[styles.modalItemText, { color: sortBy === option ? colors.accent : colors.text }]}>
                                     {option === 'date' ? 'Date Added' : option === 'name' ? 'Name' : 'Play Count'}
                                 </Text>
-                                {sortBy === option && <Ionicons name="checkmark" size={20} color="#BB86FC" />}
+                                {sortBy === option && <Ionicons name="checkmark" size={20} color={colors.accent} />}
                             </TouchableOpacity>
                         ))}
 
-                        <View style={styles.divider} />
+                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
                         <TouchableOpacity
-                            style={styles.modalItem}
+                            style={[styles.modalItem, { borderBottomColor: colors.border }]}
                             onPress={() => setHideDuplicates(!hideDuplicates)}
                         >
-                            <Text style={styles.modalItemText}>Hide Duplicates</Text>
-                            <Ionicons name={hideDuplicates ? "checkbox" : "square-outline"} size={20} color="#BB86FC" />
+                            <Text style={[styles.modalItemText, { color: colors.text }]}>Hide Duplicates</Text>
+                            <Ionicons name={hideDuplicates ? "checkbox" : "square-outline"} size={20} color={colors.accent} />
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={() => setShowSortModal(false)} style={styles.modalCloseButton}>
-                            <Text style={styles.modalCloseText}>Close</Text>
+                            <Text style={[styles.modalCloseText, { color: colors.accent }]}>Close</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -384,16 +447,16 @@ export default function LibraryScreen() {
             {/* Tabs */}
             <View style={styles.tabsContainer}>
                 <TouchableOpacity
-                    style={[styles.tab, activeTab === 'songs' && styles.activeTab]}
+                    style={[styles.tab, activeTab === 'songs' && { borderBottomColor: colors.accent, borderBottomWidth: 2 }]}
                     onPress={() => setActiveTab('songs')}
                 >
-                    <Text style={[styles.tabText, activeTab === 'songs' && styles.activeTabText]}>Songs</Text>
+                    <Text style={[styles.tabText, { color: activeTab === 'songs' ? colors.text : colors.textSecondary }]}>Songs</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.tab, activeTab === 'playlists' && styles.activeTab]}
+                    style={[styles.tab, activeTab === 'playlists' && { borderBottomColor: colors.accent, borderBottomWidth: 2 }]}
                     onPress={() => setActiveTab('playlists')}
                 >
-                    <Text style={[styles.tabText, activeTab === 'playlists' && styles.activeTabText]}>Playlists</Text>
+                    <Text style={[styles.tabText, { color: activeTab === 'playlists' ? colors.text : colors.textSecondary }]}>Playlists</Text>
                 </TouchableOpacity>
             </View>
 
@@ -407,7 +470,7 @@ export default function LibraryScreen() {
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No music found.</Text>
+                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No music found.</Text>
                         </View>
                     }
                 />
@@ -416,17 +479,17 @@ export default function LibraryScreen() {
                     data={[...smartPlaylists, ...playlists]}
                     keyExtractor={(item: any) => item.id}
                     renderItem={({ item }: { item: any }) => (
-                        <TouchableOpacity style={styles.songContainer} onPress={() => openPlaylist(item)}>
-                            <View style={styles.iconContainer}>
-                                <Ionicons name={item.icon || "list"} size={24} color={item.isSmart ? "#03DAC6" : "#BB86FC"} />
+                        <TouchableOpacity style={[styles.songContainer, { borderBottomColor: colors.border }]} onPress={() => openPlaylist(item)}>
+                            <View style={[styles.iconContainer, { backgroundColor: colors.card }]}>
+                                <Ionicons name={item.icon || "list"} size={24} color={colors.accent} />
                             </View>
                             <View style={styles.songDetails}>
-                                <Text style={styles.songTitle}>{item.name}</Text>
-                                <Text style={styles.songArtist}>{item.tracks.length} songs{item.isSmart ? ' (Smart)' : ''}</Text>
+                                <Text style={[styles.songTitle, { color: colors.text }]}>{item.name}</Text>
+                                <Text style={[styles.songArtist, { color: colors.textSecondary }]}>{item.tracks.length} songs{item.isSmart ? ' (Smart)' : ''}</Text>
                             </View>
                             {!item.isSmart && (
                                 <TouchableOpacity onPress={() => deletePlaylist(item.id)}>
-                                    <Ionicons name="trash-outline" size={20} color="#666" />
+                                    <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
                                 </TouchableOpacity>
                             )}
                         </TouchableOpacity>
@@ -435,7 +498,7 @@ export default function LibraryScreen() {
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No playlists yet.</Text>
+                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No playlists yet.</Text>
                         </View>
                     }
                 />
@@ -443,13 +506,13 @@ export default function LibraryScreen() {
 
             {/* Mini Player */}
             {currentTrack && (
-                <TouchableOpacity style={styles.miniPlayer} onPress={() => setPlayerVisible(true)}>
+                <TouchableOpacity style={[styles.miniPlayer, { backgroundColor: colors.card, borderTopColor: colors.border }]} onPress={() => setPlayerVisible(true)}>
                     <View style={styles.miniPlayerInfo}>
-                        <Text style={styles.miniPlayerTitle} numberOfLines={1}>{currentTrack.title || currentTrack.filename}</Text>
-                        <Text style={styles.miniPlayerArtist} numberOfLines={1}>{currentTrack.artist || 'Unknown'}</Text>
+                        <Text style={[styles.miniPlayerTitle, { color: colors.text }]} numberOfLines={1}>{currentTrack.title || currentTrack.filename}</Text>
+                        <Text style={[styles.miniPlayerArtist, { color: colors.textSecondary }]} numberOfLines={1}>{currentTrack.artist || 'Unknown'}</Text>
                     </View>
                     <TouchableOpacity onPress={(e) => { e.stopPropagation(); togglePlayback(); }}>
-                        <Ionicons name={isPlaying ? "pause" : "play"} size={32} color="#FFF" />
+                        <Ionicons name={isPlaying ? "pause" : "play"} size={32} color={colors.accent} />
                     </TouchableOpacity>
                 </TouchableOpacity>
             )}
@@ -463,7 +526,6 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#121212',
     },
     headerContainer: {
         flexDirection: 'row',
@@ -475,12 +537,10 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 32,
         fontWeight: 'bold',
-        color: '#FFF',
     },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#222',
         marginHorizontal: 20,
         borderRadius: 10,
         paddingHorizontal: 15,
@@ -492,7 +552,6 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        color: '#FFF',
         fontSize: 16,
     },
     tabsContainer: {
@@ -506,15 +565,12 @@ const styles = StyleSheet.create({
     },
     activeTab: {
         borderBottomWidth: 2,
-        borderBottomColor: '#BB86FC',
     },
     tabText: {
-        color: '#888',
         fontSize: 16,
         fontWeight: '600',
     },
     activeTabText: {
-        color: '#FFF',
     },
     listContent: {
         paddingHorizontal: 20,
@@ -525,13 +581,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#222',
     },
     iconContainer: {
         width: 40,
         height: 40,
         borderRadius: 8,
-        backgroundColor: '#222',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 15,
@@ -541,17 +595,14 @@ const styles = StyleSheet.create({
         marginRight: 10,
     },
     songTitle: {
-        color: '#FFF',
         fontSize: 16,
         fontWeight: '500',
         marginBottom: 4,
     },
     songArtist: {
-        color: '#888',
         fontSize: 14,
     },
     durationText: {
-        color: '#666',
         fontSize: 12,
     },
     emptyContainer: {
@@ -559,7 +610,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     emptyText: {
-        color: '#666',
         fontSize: 16,
     },
     miniPlayer: {
@@ -568,23 +618,19 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: 70,
-        backgroundColor: '#1E1E1E',
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
         borderTopWidth: 1,
-        borderTopColor: '#333',
     },
     miniPlayerInfo: {
         flex: 1,
     },
     miniPlayerTitle: {
-        color: '#FFF',
         fontSize: 15,
         fontWeight: 'bold',
     },
     miniPlayerArtist: {
-        color: '#AAA',
         fontSize: 12,
     },
     createPlaylistContainer: {
@@ -594,8 +640,6 @@ const styles = StyleSheet.create({
     },
     createInput: {
         flex: 1,
-        backgroundColor: '#222',
-        color: '#FFF',
         paddingHorizontal: 15,
         paddingVertical: 10,
         borderRadius: 8,
@@ -609,7 +653,6 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     createButtonText: {
-        color: '#000',
         fontWeight: 'bold',
     },
     modalOverlay: {
@@ -619,13 +662,11 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     modalContent: {
-        backgroundColor: '#1E1E1E',
         borderRadius: 12,
         padding: 20,
         maxHeight: '60%',
     },
     modalTitle: {
-        color: '#FFF',
         fontSize: 20,
         fontWeight: 'bold',
         marginBottom: 20,
@@ -636,10 +677,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 15,
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
     },
     modalItemText: {
-        color: '#FFF',
         fontSize: 16,
     },
     modalCloseButton: {
@@ -647,10 +686,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     modalCloseText: {
-        color: '#BB86FC',
     },
     sectionTitle: {
-        color: '#888',
         fontSize: 14,
         fontWeight: 'bold',
         marginTop: 10,
@@ -659,7 +696,6 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: '#333',
         marginVertical: 15,
     },
 });
